@@ -1,34 +1,79 @@
-# Versión utilizada
-version: '3'
+version: '3.8'
 
-# Configuración de los servidores que vamos a necesitar
-services: 
- 
-  # mysql es el nombre que vamos a dar a este primer servicio
-  # Será el nombre que tendremos que usar cuando nos refiramos a él
-  mysql:
+services:
+  # Base de datos para WordPress
+  mysql_wp:
     image: mysql:5.7
-    ports:
-      - 3306:3306
+    restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_USER: froga
-      MYSQL_PASSWORD: froga
-      MYSQL_DATABASE: froga
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp_user
+      MYSQL_PASSWORD: wp_pass
+    volumes:
+      - mysql_wp_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
 
+  # Base de datos para el proyecto PHP
+  mysql_php:
+    image: mysql:5.7
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dwes
+      MYSQL_USER: dwes
+      MYSQL_PASSWORD: dwes
+    volumes:
+      - mysql_php_data:/var/lib/mysql
+      - ./scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "3306:3306"
+
+  # phpMyAdmin para administrar ambas bases de datos
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_ARBITRARY: 1
+      PMA_HOSTS: mysql_wp,mysql_php
+
+  # WordPress
+  wordpress:
+    image: wordpress:latest
+    restart: always
+    ports:
+      - "8000:80"
+    environment:
+      WORDPRESS_DB_HOST: mysql_wp:3306
+      WORDPRESS_DB_USER: wp_user
+      WORDPRESS_DB_PASSWORD: wp_pass
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+
+  # Servidor Apache con PHP para el proyecto
   apache:
-    build: apache/
+    build: ./apache
+    restart: always
     ports:
-      - 80:80
+      - "8081:80"
     volumes:
-      - proyecto:/var/www/html/
+      - php_project:/var/www/html
 
+  # PHP-FPM para el proyecto PHP
   php:
-    build: php/
-    ports:
-      - 9000:9000
+    build: ./php
+    restart: always
     volumes:
-      - proyecto:/var/www/html/
+      - php_project:/var/www/html
+    depends_on:
+      - mysql_php
 
-volumes: 
-  proyecto:
+volumes:
+  mysql_wp_data:
+  mysql_php_data:
+  wordpress_data:
+  php_project:
